@@ -4,6 +4,7 @@ import Home from "./pages/Home"
 import Workshops from "./pages/Workshops"
 import WorkshopDetail from "./pages/WorkshopDetail"
 import MySignups from "./pages/MySignups"
+import Login from "./pages/Login"
 
 function App() {
   return (
@@ -14,6 +15,7 @@ function App() {
           <Route path="/talleres" element={<Workshops />} />
           <Route path="/talleres/:id" element={<WorkshopDetail />} />
           <Route path="/mis-inscripciones" element={<MySignups />} />
+          <Route path="/login" element={<Login />} />
         </Route>
       </Routes>
     </BrowserRouter>

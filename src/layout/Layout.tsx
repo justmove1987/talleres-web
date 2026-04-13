@@ -51,6 +51,8 @@ export default function Layout() {
             <Link to="/mis-inscripciones" className="hover:opacity-70 transition">
               Inscripciones
             </Link>
+
+            <Link to="/login">Login</Link>
           </div>
         </div>
       </nav>
