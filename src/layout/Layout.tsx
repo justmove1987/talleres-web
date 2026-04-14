@@ -23,6 +23,7 @@ export default function Layout() {
     return () => window.removeEventListener("scroll", handleScroll)
   }, [])
 
+  // 🔐 logout
   const handleLogout = async () => {
     await supabase.auth.signOut()
     setOpen(false)
@@ -58,15 +59,15 @@ export default function Layout() {
 
             <Link to="/talleres" className="hover:opacity-70 transition">
               Talleres
-            </Link>        
+            </Link>
 
             {/* 👤 USUARIO */}
             {profile ? (
               <div className="relative">
 
-                {/* botón */}
+                {/* botón usuario */}
                 <button
-                  onClick={() => setOpen(!open)}
+                  onClick={() => setOpen((prev) => !prev)}
                   className="flex items-center gap-2"
                 >
                   {profile.avatar_url ? (
@@ -86,43 +87,43 @@ export default function Layout() {
 
                 {/* dropdown */}
                 {open && (
-                <div className="absolute right-0 mt-3 w-44 bg-white text-gray-800 border rounded-xl shadow-lg overflow-hidden text-sm normal-case tracking-normal">
+                  <div className="absolute right-0 mt-3 w-44 bg-white text-gray-800 border rounded-xl shadow-lg overflow-hidden text-sm normal-case tracking-normal">
 
-                  <Link
-                    to="/perfil"
-                    onClick={() => setOpen(false)}
-                    className="block px-4 py-2 hover:bg-gray-100"
-                  >
-                    Mi perfil
-                  </Link>
-
-                  <Link
-                    to="/mis-inscripciones"
-                    onClick={() => setOpen(false)}
-                    className="block px-4 py-2 hover:bg-gray-100"
-                  >
-                    Mis talleres
-                  </Link>
-
-                  {/* 🔥 SOLO ADMIN */}
-                  {profile.role === "admin" && (
                     <Link
-                      to="/admin"
+                      to="/perfil"
                       onClick={() => setOpen(false)}
                       className="block px-4 py-2 hover:bg-gray-100"
                     >
-                      Panel admin
+                      Mi perfil
                     </Link>
-                  )}
 
-                  <button
-                    onClick={handleLogout}
-                    className="w-full text-left px-4 py-2 hover:bg-gray-100"
-                  >
-                    Cerrar sesión
-                  </button>
-                </div>
-              )}
+                    <Link
+                      to="/mis-inscripciones"
+                      onClick={() => setOpen(false)}
+                      className="block px-4 py-2 hover:bg-gray-100"
+                    >
+                      Mis talleres
+                    </Link>
+
+                    {/* 🔥 SOLO ADMIN */}
+                    {profile.role === "admin" && (
+                      <Link
+                        to="/admin"
+                        onClick={() => setOpen(false)}
+                        className="block px-4 py-2 hover:bg-gray-100"
+                      >
+                        Panel admin
+                      </Link>
+                    )}
+
+                    <button
+                      onClick={handleLogout}
+                      className="w-full text-left px-4 py-2 hover:bg-gray-100"
+                    >
+                      Cerrar sesión
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
               <Link to="/login" className="hover:opacity-70 transition">

@@ -1,63 +1,55 @@
 import { useEffect, useState } from "react"
 import type { ReactNode } from "react"
-import type { User } from "@supabase/supabase-js"
 import { supabase } from "../lib/supabase"
 import { AuthContext } from "./AuthContext"
-
-type Profile = {
-  id: string
-  name: string
-  avatar_url: string | null
-  role?: string
-}
+import type { Profile } from "./AuthContext"
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
-
-  const fetchProfile = async (userId: string) => {
-    const { data } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .single()
-
-    setProfile(data)
-  }
-
-  const refreshProfile = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    setUser(user)
-
-    if (user) {
-      await fetchProfile(user.id)
-    } else {
-      setProfile(null)
-    }
-  }
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const init = async () => {
-      await refreshProfile()
+    let mounted = true
+
+    const fetchProfile = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!mounted) return
+
+      if (!user) {
+        setProfile(null)
+        setLoading(false)
+        return
+      }
+
+      const { data } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .single()
+
+      if (!mounted) return
+
+      setProfile(data || null)
+      setLoading(false)
     }
 
-    init()
+    fetchProfile()
 
     const { data: listener } = supabase.auth.onAuthStateChange(() => {
-      refreshProfile()
+      fetchProfile()
     })
 
     return () => {
+      mounted = false
       listener.subscription.unsubscribe()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user, profile, refreshProfile }}>
+    <AuthContext.Provider value={{ profile, loading }}>
       {children}
     </AuthContext.Provider>
   )

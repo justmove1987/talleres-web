@@ -1,7 +1,6 @@
 import { createContext } from "react"
-import type { User } from "@supabase/supabase-js"
 
-type Profile = {
+export type Profile = {
   id: string
   name: string
   avatar_url: string | null
@@ -9,9 +8,11 @@ type Profile = {
 }
 
 export type AuthContextType = {
-  user: User | null
   profile: Profile | null
-  refreshProfile: () => Promise<void>
+  loading: boolean
 }
 
-export const AuthContext = createContext<AuthContextType | undefined>(undefined)
+export const AuthContext = createContext<AuthContextType>({
+  profile: null,
+  loading: true,
+})

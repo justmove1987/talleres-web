@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react"
 import { supabase } from "../lib/supabase"
+import { useNavigate } from "react-router-dom"
 
 // 🔐 Tipado Turnstile
 interface Turnstile {
@@ -19,6 +20,8 @@ declare global {
 }
 
 export default function Login() {
+  const navigate = useNavigate()
+
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [name, setName] = useState("")
@@ -32,7 +35,7 @@ export default function Login() {
   const preview = file ? URL.createObjectURL(file) : null
 
   const captchaRef = useRef<HTMLDivElement>(null)
-  const captchaRendered = useRef(false) // 🔥 FIX duplicado
+  const captchaRendered = useRef(false)
 
   // 🧹 limpiar preview
   useEffect(() => {
@@ -41,7 +44,7 @@ export default function Login() {
     }
   }, [preview])
 
-  // 🔐 Render captcha (FIX doble render)
+  // 🔐 Render captcha
   useEffect(() => {
     if (
       captchaRendered.current ||
@@ -70,20 +73,9 @@ export default function Login() {
       return
     }
 
+    // 🔐 LOGIN
     if (isLogin) {
       const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-
-      if (error) {
-        setMessage(error.message)
-      } else {
-        setMessage("Login correcto ✅")
-      }
-
-    } else {
-      const { data, error } = await supabase.auth.signUp({
         email,
         password,
       })
@@ -94,35 +86,66 @@ export default function Login() {
         return
       }
 
-      let avatarPublicUrl = ""
+      // 👉 redirigir
+      navigate("/")
+      return
+    }
 
-      if (file && data.user) {
-        const fileExt = file.name.split(".").pop()
-        const fileName = `${data.user.id}.${fileExt}`
+    // 📝 REGISTER
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+    })
 
-        const { error: uploadError } = await supabase.storage
+    if (error || !data.user) {
+      setMessage(error?.message || "Error al registrarse")
+      setLoading(false)
+      return
+    }
+
+    let avatarPublicUrl: string | null = null
+
+    // 🖼 subir avatar (opcional)
+    if (file) {
+      const fileExt = file.name.split(".").pop()
+      const fileName = `${data.user.id}.${fileExt}`
+
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(fileName, file, { upsert: true })
+
+      if (!uploadError) {
+        const { data: publicUrlData } = supabase.storage
           .from("avatars")
-          .upload(fileName, file, { upsert: true })
+          .getPublicUrl(fileName)
 
-        if (!uploadError) {
-          const { data: publicUrlData } = supabase.storage
-            .from("avatars")
-            .getPublicUrl(fileName)
-
-          avatarPublicUrl = publicUrlData.publicUrl
-        }
+        avatarPublicUrl = publicUrlData.publicUrl
       }
+    }
 
-      await supabase.from("profiles").insert([
+    // 👉 crear perfil (IMPORTANTE)
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .insert([
         {
-          id: data.user?.id,
+          id: data.user.id,
           name: name || "Usuario",
-          avatar_url: avatarPublicUrl,
+          avatar_url: avatarPublicUrl, // ✅ null permitido
+          role: "user",
         },
       ])
 
-      setMessage("Cuenta creada correctamente ✅")
+    if (profileError) {
+      console.error("PROFILE ERROR:", profileError)
+      setMessage("Error creando perfil")
+      setLoading(false)
+      return
     }
+
+    setMessage("Cuenta creada correctamente ✅")
+
+    // 👉 opcional: redirigir tras registro
+    navigate("/")
 
     setLoading(false)
   }
@@ -135,6 +158,7 @@ export default function Login() {
 
       <form onSubmit={handleSubmit} className="space-y-3">
 
+        {/* REGISTRO */}
         {!isLogin && (
           <>
             <input
@@ -171,6 +195,7 @@ export default function Login() {
           </>
         )}
 
+        {/* EMAIL */}
         <input
           className="w-full p-2 border rounded"
           type="email"
@@ -180,6 +205,7 @@ export default function Login() {
           required
         />
 
+        {/* PASSWORD */}
         <input
           className="w-full p-2 border rounded"
           type="password"
@@ -189,17 +215,21 @@ export default function Login() {
           required
         />
 
+        {/* RECORDAR */}
         <label className="text-sm flex items-center gap-2">
           <input type="checkbox" />
           Recordarme
         </label>
 
+        {/* CAPTCHA */}
         <div ref={captchaRef} />
 
+        {/* MENSAJE */}
         {message && (
           <p className="text-sm text-red-500">{message}</p>
         )}
 
+        {/* BOTÓN */}
         <button
           disabled={loading}
           className="border px-4 py-2 rounded-full w-full hover:bg-gray-100 transition disabled:opacity-50"
@@ -212,6 +242,7 @@ export default function Login() {
         </button>
       </form>
 
+      {/* SWITCH */}
       <button
         className="mt-4 text-sm underline"
         onClick={() => {
