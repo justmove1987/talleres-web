@@ -5,6 +5,7 @@ import Workshops from "./pages/Workshops"
 import WorkshopDetail from "./pages/WorkshopDetail"
 import MySignups from "./pages/MySignups"
 import Login from "./pages/Login"
+import Admin from "./pages/Admin"
 
 function App() {
   return (
@@ -16,6 +17,7 @@ function App() {
           <Route path="/talleres/:id" element={<WorkshopDetail />} />
           <Route path="/mis-inscripciones" element={<MySignups />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/admin" element={<Admin />} />
         </Route>
       </Routes>
     </BrowserRouter>

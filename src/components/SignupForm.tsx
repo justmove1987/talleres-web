@@ -1,45 +1,77 @@
 import { useState } from "react"
-import { useSignup } from "../hooks/useSignup"
+import { supabase } from "../lib/supabase"
 
 type Props = {
   workshopId: string
 }
 
 export default function SignupForm({ workshopId }: Props) {
-  const [name, setName] = useState("")
-  const [email, setEmail] = useState("")
   const [submitted, setSubmitted] = useState(false)
-  const [error, setError] = useState("")
+  const [message, setMessage] = useState("")
+  const [loading, setLoading] = useState(false)
 
-  const { addSignup, signups } = useSignup()
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setLoading(true)
+    setMessage("")
 
-    const alreadySigned = signups.some(
-      (s) =>
-        s.workshopId === workshopId &&
-        s.email.toLowerCase() === email.toLowerCase()
-    )
+    try {
+      // 🔐 obtener usuario actual
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser()
 
-    if (alreadySigned) {
-      setError("Este email ya está inscrito en este taller")
-      return
+      console.log("USER:", user)
+
+      if (userError || !user) {
+        setMessage("Debes iniciar sesión")
+        setLoading(false)
+        return
+      }
+
+      const payload = {
+        user_id: user.id,
+        workshop_id: workshopId,
+        email: user.email,
+      }
+
+      console.log("INSERT PAYLOAD:", payload)
+
+      // 💾 guardar en base de datos
+      const { error } = await supabase
+        .from("enrollments")
+        .insert([payload])
+
+      if (error) {
+        console.error("INSERT ERROR:", error)
+
+        if (error.code === "23505") {
+          setMessage("Ya estás inscrito en este taller 🎨")
+        } else if (error.message.includes("row-level security")) {
+          setMessage("Error de permisos (RLS)")
+        } else {
+          setMessage(error.message)
+        }
+
+        return
+      }
+
+      setSubmitted(true)
+    } catch (err) {
+      console.error("UNEXPECTED ERROR:", err)
+      setMessage("Error inesperado")
+    } finally {
+      setLoading(false)
     }
-
-    setError("")
-
-    addSignup({
-      workshopId,
-      name,
-      email,
-    })
-
-    setSubmitted(true)
   }
 
   if (submitted) {
-    return <p className="text-green-600">✅ Inscripción completada</p>
+    return (
+      <p className="text-green-600">
+        ✅ Inscripción completada
+      </p>
+    )
   }
 
   return (
@@ -47,32 +79,18 @@ export default function SignupForm({ workshopId }: Props) {
       onSubmit={handleSubmit}
       className="bg-gray-50 p-4 rounded-lg border space-y-3 max-w-md"
     >
-      <h3 className="font-semibold">Inscripción</h3>
+      <h3 className="font-display text-lg">Inscripción</h3>
 
-      {error && (
-        <p className="text-red-500 text-sm">{error}</p>
+      {message && (
+        <p className="text-sm text-red-500">{message}</p>
       )}
 
-      <input
-        className="w-full p-2 border rounded"
-        type="text"
-        placeholder="Nombre"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        required
-      />
-
-      <input
-        className="w-full p-2 border rounded"
-        type="email"
-        placeholder="Email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        required
-      />
-
-      <button className="mt-4 border border-gray-800 px-4 py-2 rounded-full text-sm hover:bg-gray-100 transition">
-        Enviar
+      <button
+        type="submit"
+        disabled={loading}
+        className="mt-2 border border-gray-800 px-4 py-2 rounded-full text-sm hover:bg-gray-100 transition disabled:opacity-50"
+      >
+        {loading ? "Inscribiendo..." : "Confirmar inscripción"}
       </button>
     </form>
   )
