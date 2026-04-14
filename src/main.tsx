@@ -1,13 +1,13 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import './index.css'
-import App from './App.tsx'
-import { SignupProvider } from "./context/SignupContext"
+import React from "react"
+import ReactDOM from "react-dom/client"
+import App from "./App"
+import "./index.css"
+import { AuthProvider } from "./context/AuthProvider"
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <SignupProvider>
+ReactDOM.createRoot(document.getElementById("root")!).render(
+  <React.StrictMode>
+    <AuthProvider>
       <App />
-    </SignupProvider>
-  </StrictMode>,
+    </AuthProvider>
+  </React.StrictMode>
 )

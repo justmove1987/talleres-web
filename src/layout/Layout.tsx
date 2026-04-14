@@ -1,19 +1,19 @@
 import { Link, Outlet, useLocation } from "react-router-dom"
 import { useEffect, useState } from "react"
-import { supabase } from "../lib/supabase"
 import Footer from "../components/Footer"
+import { useAuth } from "../context/useAuth"
+import { supabase } from "../lib/supabase"
 
 export default function Layout() {
   const location = useLocation()
   const isHome = location.pathname === "/"
 
   const [scrolled, setScrolled] = useState(false)
-  const [profile, setProfile] = useState<Profile | null>(null)
- type Profile = {
-  id: string
-  name: string
-  avatar_url: string | null
-}
+  const [open, setOpen] = useState(false)
+
+  const { profile } = useAuth()
+
+  // 🧭 scroll navbar
   useEffect(() => {
     const handleScroll = () => {
       setScrolled(window.scrollY > 50)
@@ -23,39 +23,9 @@ export default function Layout() {
     return () => window.removeEventListener("scroll", handleScroll)
   }, [])
 
-  // 🔐 cargar usuario + perfil
-  useEffect(() => {
-    const fetchProfile = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-
-      if (!user) return
-
-      const { data } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .single()
-
-      setProfile(data)
-    }
-
-    fetchProfile()
-
-    // escuchar cambios de sesión (login/logout)
-    const { data: listener } = supabase.auth.onAuthStateChange(() => {
-      fetchProfile()
-    })
-
-    return () => {
-      listener.subscription.unsubscribe()
-    }
-  }, [])
-
   const handleLogout = async () => {
     await supabase.auth.signOut()
-    setProfile(null)
+    setOpen(false)
   }
 
   return (
@@ -88,41 +58,71 @@ export default function Layout() {
 
             <Link to="/talleres" className="hover:opacity-70 transition">
               Talleres
-            </Link>
-
-            <Link to="/mis-inscripciones" className="hover:opacity-70 transition">
-              Inscripciones
-            </Link>
-
-            <Link to="/admin">Admin</Link>
+            </Link>        
 
             {/* 👤 USUARIO */}
             {profile ? (
-              <div className="flex items-center gap-3">
+              <div className="relative">
 
-                {/* avatar */}
-                {profile.avatar_url ? (
-                  <img
-                    src={profile.avatar_url}
-                    alt="avatar"
-                    className="w-8 h-8 rounded-full object-cover"
-                  />
-                ) : (
-                  <div className="w-8 h-8 bg-gray-300 rounded-full" />
-                )}
-
-                {/* nombre */}
-                <span className="text-xs normal-case tracking-normal">
-                  {profile.name}
-                </span>
-
-                {/* logout */}
+                {/* botón */}
                 <button
-                  onClick={handleLogout}
-                  className="text-xs underline hover:opacity-70 normal-case"
+                  onClick={() => setOpen(!open)}
+                  className="flex items-center gap-2"
                 >
-                  Salir
+                  {profile.avatar_url ? (
+                    <img
+                      src={profile.avatar_url}
+                      alt="avatar"
+                      className="w-8 h-8 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 bg-gray-300 rounded-full" />
+                  )}
+
+                  <span className="text-xs normal-case tracking-normal">
+                    {profile.name}
+                  </span>
                 </button>
+
+                {/* dropdown */}
+                {open && (
+                <div className="absolute right-0 mt-3 w-44 bg-white text-gray-800 border rounded-xl shadow-lg overflow-hidden text-sm normal-case tracking-normal">
+
+                  <Link
+                    to="/perfil"
+                    onClick={() => setOpen(false)}
+                    className="block px-4 py-2 hover:bg-gray-100"
+                  >
+                    Mi perfil
+                  </Link>
+
+                  <Link
+                    to="/mis-inscripciones"
+                    onClick={() => setOpen(false)}
+                    className="block px-4 py-2 hover:bg-gray-100"
+                  >
+                    Mis talleres
+                  </Link>
+
+                  {/* 🔥 SOLO ADMIN */}
+                  {profile.role === "admin" && (
+                    <Link
+                      to="/admin"
+                      onClick={() => setOpen(false)}
+                      className="block px-4 py-2 hover:bg-gray-100"
+                    >
+                      Panel admin
+                    </Link>
+                  )}
+
+                  <button
+                    onClick={handleLogout}
+                    className="w-full text-left px-4 py-2 hover:bg-gray-100"
+                  >
+                    Cerrar sesión
+                  </button>
+                </div>
+              )}
               </div>
             ) : (
               <Link to="/login" className="hover:opacity-70 transition">

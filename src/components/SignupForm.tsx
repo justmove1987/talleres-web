@@ -3,9 +3,10 @@ import { supabase } from "../lib/supabase"
 
 type Props = {
   workshopId: string
+  capacity: number
 }
 
-export default function SignupForm({ workshopId }: Props) {
+export default function SignupForm({ workshopId, capacity }: Props) {
   const [submitted, setSubmitted] = useState(false)
   const [message, setMessage] = useState("")
   const [loading, setLoading] = useState(false)
@@ -16,13 +17,11 @@ export default function SignupForm({ workshopId }: Props) {
     setMessage("")
 
     try {
-      // 🔐 obtener usuario actual
+      // 🔐 usuario actual
       const {
         data: { user },
         error: userError,
       } = await supabase.auth.getUser()
-
-      console.log("USER:", user)
 
       if (userError || !user) {
         setMessage("Debes iniciar sesión")
@@ -30,18 +29,41 @@ export default function SignupForm({ workshopId }: Props) {
         return
       }
 
-      const payload = {
-        user_id: user.id,
-        workshop_id: workshopId,
-        email: user.email,
+      // 🔍 comprobar duplicado (extra seguridad frontend)
+      const { data: existing } = await supabase
+        .from("enrollments")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("workshop_id", workshopId)
+        .maybeSingle()
+
+      if (existing) {
+        setMessage("Ya estás inscrito en este taller 🎨")
+        setLoading(false)
+        return
       }
 
-      console.log("INSERT PAYLOAD:", payload)
+      // 📊 comprobar plazas disponibles
+      const { count } = await supabase
+        .from("enrollments")
+        .select("*", { count: "exact", head: true })
+        .eq("workshop_id", workshopId)
 
-      // 💾 guardar en base de datos
+      if ((count || 0) >= capacity) {
+        setMessage("Taller completo ❌")
+        setLoading(false)
+        return
+      }
+
+      // 💾 insertar inscripción
       const { error } = await supabase
         .from("enrollments")
-        .insert([payload])
+        .insert([
+          {
+            user_id: user.id,
+            workshop_id: workshopId,
+          },
+        ])
 
       if (error) {
         console.error("INSERT ERROR:", error)
@@ -49,15 +71,17 @@ export default function SignupForm({ workshopId }: Props) {
         if (error.code === "23505") {
           setMessage("Ya estás inscrito en este taller 🎨")
         } else if (error.message.includes("row-level security")) {
-          setMessage("Error de permisos (RLS)")
+          setMessage("Error de permisos")
         } else {
-          setMessage(error.message)
+          setMessage("Error al inscribirse")
         }
 
+        setLoading(false)
         return
       }
 
       setSubmitted(true)
+
     } catch (err) {
       console.error("UNEXPECTED ERROR:", err)
       setMessage("Error inesperado")

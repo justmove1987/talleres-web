@@ -1,8 +1,45 @@
-import { workshops } from "../data/workshops"
-import type { Workshop } from "../data/workshops"
+import { useEffect, useState } from "react"
+import { supabase } from "../lib/supabase"
 import { Link } from "react-router-dom"
 
+type Workshop = {
+  id: string
+  title: string
+  description: string
+  date: string
+  capacity: number
+  image: string
+}
+
 export default function Workshops() {
+  const [workshops, setWorkshops] = useState<Workshop[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchWorkshops = async () => {
+      const { data, error } = await supabase
+        .from("workshops")
+        .select("*")
+        .order("date", { ascending: true })
+
+      if (error) {
+        console.error(error)
+      } else {
+        setWorkshops(data || [])
+      }
+
+      setLoading(false)
+    }
+
+    fetchWorkshops()
+  }, [])
+
+  if (loading) {
+    return (
+      <p className="text-center mt-20">Cargando talleres...</p>
+    )
+  }
+
   return (
     <div className="max-w-5xl mx-auto px-6">
       <h1 className="text-3xl font-display mb-8">
@@ -10,14 +47,14 @@ export default function Workshops() {
       </h1>
 
       <div className="grid md:grid-cols-2 gap-6">
-        {workshops.map((workshop: Workshop) => (
+        {workshops.map((workshop) => (
           <div
             key={workshop.id}
             className="bg-white rounded-2xl overflow-hidden border hover:shadow-md hover:-translate-y-1 transition"
           >
             {/* IMAGEN */}
             <img
-              src={workshop.image}
+              src={workshop.image || "/placeholder.png"}
               alt={workshop.title}
               className="w-full h-48 object-cover"
             />
@@ -34,6 +71,10 @@ export default function Workshops() {
 
               <p className="text-xs text-gray-400">
                 📅 {workshop.date}
+              </p>
+
+              <p className="text-xs text-gray-500">
+                👥 {workshop.capacity} plazas
               </p>
 
               <Link to={`/talleres/${workshop.id}`}>

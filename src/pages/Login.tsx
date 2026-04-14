@@ -22,17 +22,34 @@ export default function Login() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [name, setName] = useState("")
-  const [avatarUrl, setAvatarUrl] = useState("")
   const [isLogin, setIsLogin] = useState(true)
   const [message, setMessage] = useState("")
   const [loading, setLoading] = useState(false)
   const [captchaToken, setCaptchaToken] = useState("")
 
-  const captchaRef = useRef<HTMLDivElement>(null)
+  const [file, setFile] = useState<File | null>(null)
 
-  // 🔐 Render captcha correctamente en React
+  const preview = file ? URL.createObjectURL(file) : null
+
+  const captchaRef = useRef<HTMLDivElement>(null)
+  const captchaRendered = useRef(false) // 🔥 FIX duplicado
+
+  // 🧹 limpiar preview
   useEffect(() => {
-    if (!captchaRef.current || !window.turnstile) return
+    return () => {
+      if (preview) URL.revokeObjectURL(preview)
+    }
+  }, [preview])
+
+  // 🔐 Render captcha (FIX doble render)
+  useEffect(() => {
+    if (
+      captchaRendered.current ||
+      !captchaRef.current ||
+      !window.turnstile
+    ) return
+
+    captchaRendered.current = true
 
     window.turnstile.render(captchaRef.current, {
       sitekey: "0x4AAAAAAC9MXK4yuHZMn_On",
@@ -47,7 +64,6 @@ export default function Login() {
     setLoading(true)
     setMessage("")
 
-    // 🚨 validar captcha
     if (!captchaToken) {
       setMessage("Completa el captcha")
       setLoading(false)
@@ -74,17 +90,38 @@ export default function Login() {
 
       if (error) {
         setMessage(error.message)
-      } else {
-        await supabase.from("profiles").insert([
-          {
-            id: data.user?.id,
-            name: name || "Usuario",
-            avatar_url: avatarUrl || "",
-          },
-        ])
-
-        setMessage("Cuenta creada correctamente ✅")
+        setLoading(false)
+        return
       }
+
+      let avatarPublicUrl = ""
+
+      if (file && data.user) {
+        const fileExt = file.name.split(".").pop()
+        const fileName = `${data.user.id}.${fileExt}`
+
+        const { error: uploadError } = await supabase.storage
+          .from("avatars")
+          .upload(fileName, file, { upsert: true })
+
+        if (!uploadError) {
+          const { data: publicUrlData } = supabase.storage
+            .from("avatars")
+            .getPublicUrl(fileName)
+
+          avatarPublicUrl = publicUrlData.publicUrl
+        }
+      }
+
+      await supabase.from("profiles").insert([
+        {
+          id: data.user?.id,
+          name: name || "Usuario",
+          avatar_url: avatarPublicUrl,
+        },
+      ])
+
+      setMessage("Cuenta creada correctamente ✅")
     }
 
     setLoading(false)
@@ -98,7 +135,6 @@ export default function Login() {
 
       <form onSubmit={handleSubmit} className="space-y-3">
 
-        {/* SOLO REGISTRO */}
         {!isLogin && (
           <>
             <input
@@ -109,13 +145,29 @@ export default function Login() {
               onChange={(e) => setName(e.target.value)}
             />
 
-            <input
-              className="w-full p-2 border rounded"
-              type="text"
-              placeholder="URL de avatar (opcional)"
-              value={avatarUrl}
-              onChange={(e) => setAvatarUrl(e.target.value)}
-            />
+            <div>
+              <label className="text-sm block mb-1">
+                Avatar (opcional)
+              </label>
+
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => {
+                  if (e.target.files) {
+                    setFile(e.target.files[0])
+                  }
+                }}
+              />
+
+              {preview && (
+                <img
+                  src={preview}
+                  alt="preview"
+                  className="mt-2 w-16 h-16 rounded-full object-cover"
+                />
+              )}
+            </div>
           </>
         )}
 
@@ -137,13 +189,11 @@ export default function Login() {
           required
         />
 
-        {/* RECORDAR */}
         <label className="text-sm flex items-center gap-2">
           <input type="checkbox" />
           Recordarme
         </label>
 
-        {/* 🔐 CAPTCHA */}
         <div ref={captchaRef} />
 
         {message && (

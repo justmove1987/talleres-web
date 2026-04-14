@@ -1,53 +1,56 @@
 import { useEffect, useState } from "react"
 import { supabase } from "../lib/supabase"
-import { workshops } from "../data/workshops"
 
 type Enrollment = {
   id: string
   user_id: string
   workshop_id: string
-  email: string
 }
 
-const ADMIN_EMAIL = "enricabadrovira@gmail.com" // 🔥 cambia esto
+type Workshop = {
+  id: string
+  title: string
+  capacity: number
+}
 
 export default function Admin() {
   const [enrollments, setEnrollments] = useState<Enrollment[]>([])
+  const [workshops, setWorkshops] = useState<Workshop[]>([])
   const [stats, setStats] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
-  const [authorized, setAuthorized] = useState(false)
 
   useEffect(() => {
     const fetchData = async () => {
+      // 🔐 usuario
       const {
         data: { user },
       } = await supabase.auth.getUser()
 
-      if (!user || user.email !== ADMIN_EMAIL) {
-        setAuthorized(false)
+      if (!user) {
         setLoading(false)
         return
       }
 
-      setAuthorized(true)
+      // 📦 traer workshops
+      const { data: workshopsData } = await supabase
+        .from("workshops")
+        .select("*")
 
-      const { data, error } = await supabase
+      // 📦 traer enrollments
+      const { data: enrollmentsData } = await supabase
         .from("enrollments")
         .select("*")
 
-      if (error) {
-        console.error(error)
-        setLoading(false)
-        return
-      }
+      const enrollmentsList = enrollmentsData || []
+      const workshopsList = workshopsData || []
 
-      const enrollmentsData = data || []
-      setEnrollments(enrollmentsData)
+      setEnrollments(enrollmentsList)
+      setWorkshops(workshopsList)
 
-      // 📊 calcular estadísticas
+      // 📊 calcular stats
       const counts: Record<string, number> = {}
 
-      enrollmentsData.forEach((e) => {
+      enrollmentsList.forEach((e) => {
         counts[e.workshop_id] =
           (counts[e.workshop_id] || 0) + 1
       })
@@ -87,7 +90,7 @@ export default function Admin() {
 
       if (deleted) {
         updated[deleted.workshop_id] =
-          (updated[deleted.workshop_id] || 1) - 1
+          Math.max((updated[deleted.workshop_id] || 1) - 1, 0)
       }
 
       return updated
@@ -98,21 +101,13 @@ export default function Admin() {
     return <p className="mt-10 text-center">Cargando...</p>
   }
 
-  if (!authorized) {
-    return (
-      <p className="mt-10 text-center text-red-500">
-        No autorizado
-      </p>
-    )
-  }
-
   return (
     <div className="max-w-5xl mx-auto px-6">
       <h1 className="text-3xl font-display mb-6">
         Panel Admin
       </h1>
 
-      {/* 📊 ESTADÍSTICAS CON BARRA */}
+      {/* 📊 ESTADÍSTICAS */}
       <div className="mb-10">
         <h2 className="text-2xl font-display mb-4">
           Estadísticas
@@ -165,18 +160,16 @@ export default function Admin() {
             >
               <div>
                 <p className="text-sm text-gray-500">
-                  {enrollment.email}
+                  {enrollment.user_id}
                 </p>
 
                 <p className="font-display text-lg">
-                  {workshop?.title}
+                  {workshop?.title || "Taller eliminado"}
                 </p>
               </div>
 
               <button
-                onClick={() =>
-                  handleDelete(enrollment.id)
-                }
+                onClick={() => handleDelete(enrollment.id)}
                 className="text-sm border border-red-500 text-red-500 px-3 py-1 rounded-full hover:bg-red-500 hover:text-white transition"
               >
                 Eliminar

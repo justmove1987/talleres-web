@@ -1,20 +1,40 @@
 import { useEffect, useState } from "react"
 import { supabase } from "../lib/supabase"
-import { workshops } from "../data/workshops"
 
-type Enrollment = {
+// 🔹 tipos
+type Workshop = {
+  title: string
+  date: string
+  description: string
+  image: string | null
+}
+
+type EnrollmentWithWorkshop = {
   id: string
-  workshop_id: string
+  workshop: Workshop | null
+}
+
+// 🔥 type guard REAL
+function isWorkshop(w: unknown): w is Workshop {
+  return (
+    typeof w === "object" &&
+    w !== null &&
+    "title" in w &&
+    "date" in w &&
+    "description" in w &&
+    "image" in w
+  )
 }
 
 export default function MySignups() {
-  const [enrollments, setEnrollments] = useState<Enrollment[]>([])
+  const [enrollments, setEnrollments] = useState<EnrollmentWithWorkshop[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const fetchEnrollments = async () => {
-      const { data: userData } = await supabase.auth.getUser()
-      const user = userData.user
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
 
       if (!user) {
         setLoading(false)
@@ -23,13 +43,37 @@ export default function MySignups() {
 
       const { data, error } = await supabase
         .from("enrollments")
-        .select("*")
+        .select(`
+          id,
+          workshop:workshops (
+            title,
+            date,
+            description,
+            image
+          )
+        `)
         .eq("user_id", user.id)
 
       if (error) {
         console.error(error)
-      } else {
-        setEnrollments(data || [])
+      } else if (data) {
+        const formatted: EnrollmentWithWorkshop[] = data.map((item) => {
+          const w = item.workshop
+
+          return {
+            id: String(item.id),
+            workshop: isWorkshop(w)
+              ? {
+                  title: String(w.title),
+                  date: String(w.date),
+                  description: String(w.description),
+                  image: w.image ? String(w.image) : null,
+                }
+              : null,
+          }
+        })
+
+        setEnrollments(formatted)
       }
 
       setLoading(false)
@@ -39,11 +83,15 @@ export default function MySignups() {
   }, [])
 
   if (loading) {
-    return <p>Cargando...</p>
+    return <p className="mt-20 text-center">Cargando...</p>
   }
 
   if (enrollments.length === 0) {
-    return <p>No tienes inscripciones aún</p>
+    return (
+      <p className="mt-20 text-center">
+        No tienes inscripciones aún
+      </p>
+    )
   }
 
   return (
@@ -54,26 +102,40 @@ export default function MySignups() {
 
       <div className="space-y-4">
         {enrollments.map((enrollment) => {
-          const workshop = workshops.find(
-            (w) => w.id === enrollment.workshop_id
-          )
+          const workshop = enrollment.workshop
 
           return (
             <div
               key={enrollment.id}
               className="bg-white p-5 rounded-xl border"
             >
-              <h2 className="font-display text-xl">
-                {workshop?.title}
-              </h2>
+              {workshop ? (
+                <>
+                  {workshop.image && (
+                    <img
+                      src={workshop.image}
+                      alt={workshop.title}
+                      className="w-full h-40 object-cover rounded-lg mb-3"
+                    />
+                  )}
 
-              <p className="text-sm text-gray-500">
-                📅 {workshop?.date}
-              </p>
+                  <h2 className="font-display text-xl">
+                    {workshop.title}
+                  </h2>
 
-              <p className="text-sm text-gray-600 mt-2">
-                {workshop?.description}
-              </p>
+                  <p className="text-sm text-gray-500">
+                    📅 {workshop.date}
+                  </p>
+
+                  <p className="text-sm text-gray-600 mt-2">
+                    {workshop.description}
+                  </p>
+                </>
+              ) : (
+                <p className="text-red-500">
+                  Taller no disponible
+                </p>
+              )}
             </div>
           )
         })}

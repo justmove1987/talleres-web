@@ -1,32 +1,57 @@
 import { useParams } from "react-router-dom"
-import { workshops } from "../data/workshops"
 import { useState, useEffect } from "react"
 import SignupForm from "../components/SignupForm"
 import { supabase } from "../lib/supabase"
 
+type Workshop = {
+  id: string
+  title: string
+  description: string
+  date: string
+  capacity: number
+  image: string
+}
+
 export default function WorkshopDetail() {
   const { id } = useParams()
+
+  const [workshop, setWorkshop] = useState<Workshop | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [availableSpots, setAvailableSpots] = useState<number | null>(null)
   const [isEnrolled, setIsEnrolled] = useState(false)
-
-  const workshop = workshops.find((w) => w.id === id)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!workshop) return
+      if (!id) return
+
+      // 📦 obtener workshop desde DB
+      const { data: workshopData, error } = await supabase
+        .from("workshops")
+        .select("*")
+        .eq("id", id)
+        .single()
+
+      if (error || !workshopData) {
+        console.error(error)
+        setLoading(false)
+        return
+      }
+
+      setWorkshop(workshopData)
 
       const {
         data: { user },
       } = await supabase.auth.getUser()
 
-      // 📊 contar plazas
+      // 📊 contar inscripciones
       const { count } = await supabase
         .from("enrollments")
         .select("*", { count: "exact", head: true })
-        .eq("workshop_id", workshop.id)
+        .eq("workshop_id", workshopData.id)
 
-      setAvailableSpots(workshop.capacity - (count || 0))
+      const spots = workshopData.capacity - (count || 0)
+      setAvailableSpots(spots)
 
       // 🔍 comprobar si ya está inscrito
       if (user) {
@@ -34,24 +59,40 @@ export default function WorkshopDetail() {
           .from("enrollments")
           .select("*")
           .eq("user_id", user.id)
-          .eq("workshop_id", workshop.id)
+          .eq("workshop_id", workshopData.id)
           .maybeSingle()
 
         if (data) {
           setIsEnrolled(true)
         }
       }
+
+      setLoading(false)
     }
 
     fetchData()
-  }, [workshop])
+  }, [id])
+
+  if (loading) {
+    return <p className="mt-20 text-center">Cargando taller...</p>
+  }
 
   if (!workshop) {
-    return <h2>Taller no encontrado</h2>
+    return <h2 className="mt-20 text-center">Taller no encontrado</h2>
   }
 
   return (
     <div className="max-w-4xl mx-auto px-6">
+
+      {/* 🖼 imagen */}
+      {workshop.image && (
+        <img
+          src={workshop.image}
+          alt={workshop.title}
+          className="w-full h-64 object-cover rounded-xl mb-6"
+        />
+      )}
+
       <h1 className="text-3xl font-display mb-4">
         {workshop.title}
       </h1>
@@ -69,11 +110,12 @@ export default function WorkshopDetail() {
           : "Cargando..."}
       </p>
 
-      {/* 🔒 SI YA ESTÁ INSCRITO */}
+      {/* 🔒 YA INSCRITO */}
       {isEnrolled ? (
         <p className="text-green-600 font-medium">
           ✅ Ya estás inscrito en este taller
         </p>
+
       ) : availableSpots !== null && availableSpots > 0 ? (
         <>
           <button
@@ -85,12 +127,17 @@ export default function WorkshopDetail() {
 
           {showForm && (
             <div className="mt-6">
-              <SignupForm workshopId={workshop.id} />
+              <SignupForm
+                workshopId={workshop.id}
+                capacity={workshop.capacity} // 🔥 importante
+              />
             </div>
           )}
         </>
       ) : (
-        <p className="text-red-500">❌ Taller completo</p>
+        <p className="text-red-500 font-medium">
+          ❌ Taller completo
+        </p>
       )}
     </div>
   )
